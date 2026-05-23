@@ -1,0 +1,494 @@
+/* ============================================
+   BPMN Doc Generator Plugin — Styles
+   ============================================ */
+
+.dg-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  color: #333;
+  background: #fafafa;
+}
+
+/* Header */
+.dg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fff;
+}
+
+.dg-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.dg-version {
+  font-size: 10px;
+  color: #999;
+}
+
+/* Tabs */
+.dg-tabs {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fff;
+}
+
+.dg-tab {
+  padding: 6px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.dg-tab:hover {
+  color: #333;
+  background: #f5f5f5;
+}
+
+.dg-tab.active {
+  color: #1890ff;
+  border-bottom-color: #1890ff;
+  font-weight: 500;
+}
+
+/* Body */
+.dg-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* Sections */
+.dg-section {
+  margin-bottom: 14px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+}
+
+.dg-section-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: block;
+  font-size: 12px;
+  color: #555;
+}
+
+.dg-hint {
+  color: #999;
+  font-style: italic;
+  margin: 0;
+}
+
+/* Info Grid */
+.dg-info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  font-size: 11px;
+}
+
+.dg-label {
+  color: #888;
+  font-weight: 500;
+}
+
+/* Coverage */
+.dg-coverage {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dg-coverage-label {
+  font-size: 11px;
+  color: #555;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dg-coverage-bar {
+  flex: 1;
+  height: 6px;
+  background: #e8e8e8;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.dg-coverage-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #52c41a, #73d13d);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.dg-coverage-text {
+  font-size: 10px;
+  color: #888;
+  white-space: nowrap;
+}
+
+/* Warnings */
+.dg-warnings {
+  margin-top: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.dg-warning {
+  padding: 4px 8px;
+  margin: 2px 0;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.dg-warning-error {
+  background: #fff2f0;
+  color: #cf1322;
+  border: 1px solid #ffa39e;
+}
+
+.dg-warning-warning {
+  background: #fffbe6;
+  color: #ad6800;
+  border: 1px solid #ffe58f;
+}
+
+.dg-warning-info {
+  background: #e6f7ff;
+  color: #0050b3;
+  border: 1px solid #91d5ff;
+}
+
+.dg-warning-level {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 9px;
+  margin-right: 4px;
+}
+
+/* Textarea */
+.dg-textarea {
+  width: 100%;
+  min-height: 70px;
+  padding: 6px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.dg-textarea:focus {
+  border-color: #1890ff;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+}
+
+.dg-char-count {
+  display: block;
+  text-align: right;
+  font-size: 10px;
+  color: #999;
+  margin-top: 2px;
+}
+
+/* Forms */
+.dg-form-group {
+  margin-bottom: 8px;
+}
+
+.dg-form-group label {
+  display: block;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 3px;
+}
+
+.dg-form-group input,
+.dg-form-group select {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 3px;
+  font-size: 11px;
+  box-sizing: border-box;
+}
+
+.dg-form-group input:focus,
+.dg-form-group select:focus {
+  border-color: #1890ff;
+  outline: none;
+}
+
+.dg-form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.dg-form-half {
+  flex: 1;
+}
+
+/* Connection Status */
+.dg-conn-status {
+  font-size: 11px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dg-conn-status::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dg-conn-status.connected::before {
+  background: #52c41a;
+}
+
+.dg-conn-status.disconnected::before {
+  background: #ff4d4f;
+}
+
+.dg-conn-status.checking::before {
+  background: #faad14;
+  animation: dg-pulse 1s infinite;
+}
+
+@keyframes dg-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Buttons */
+.dg-btn {
+  padding: 5px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s;
+}
+
+.dg-btn:hover:not(:disabled) {
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+.dg-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dg-btn-primary {
+  background: #1890ff;
+  border-color: #1890ff;
+  color: #fff;
+}
+
+.dg-btn-primary:hover:not(:disabled) {
+  background: #40a9ff;
+  border-color: #40a9ff;
+  color: #fff;
+}
+
+.dg-btn-sm {
+  padding: 3px 8px;
+  font-size: 10px;
+}
+
+/* Actions */
+.dg-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* Progress */
+.dg-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #1890ff;
+}
+
+.dg-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #e0e0e0;
+  border-top-color: #1890ff;
+  border-radius: 50%;
+  animation: dg-spin 0.8s linear infinite;
+}
+
+@keyframes dg-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error */
+.dg-error {
+  margin-top: 10px;
+  padding: 8px;
+  background: #fff2f0;
+  border: 1px solid #ffa39e;
+  border-radius: 4px;
+  color: #cf1322;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* Preview */
+.dg-preview-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.dg-preview-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 0;
+  border-bottom: 1px solid #e8e8e8;
+  margin-bottom: 8px;
+}
+
+.dg-preview {
+  flex: 1;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.dg-editor {
+  flex: 1;
+  width: 100%;
+  min-height: 300px;
+  padding: 10px;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  resize: none;
+  box-sizing: border-box;
+}
+
+.dg-editor:focus {
+  border-color: #1890ff;
+  outline: none;
+}
+
+/* Markdown Preview Rendering */
+.dg-md-preview {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.dg-md-preview h2 {
+  font-size: 15px;
+  margin: 14px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.dg-md-preview h3 {
+  font-size: 13px;
+  margin: 10px 0 4px;
+}
+
+.dg-md-preview h4 {
+  font-size: 12px;
+  margin: 8px 0 4px;
+}
+
+.dg-md-preview strong {
+  font-weight: 600;
+}
+
+.dg-md-preview code {
+  background: #f5f5f5;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.dg-md-preview blockquote {
+  border-left: 3px solid #1890ff;
+  padding-left: 10px;
+  color: #666;
+  margin: 6px 0;
+}
+
+.dg-md-preview hr {
+  border: none;
+  border-top: 1px solid #e8e8e8;
+  margin: 12px 0;
+}
+
+.dg-md-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 11px;
+}
+
+.dg-md-preview td {
+  border: 1px solid #e8e8e8;
+  padding: 4px 8px;
+}
+
+.dg-md-preview tr:nth-child(even) {
+  background: #fafafa;
+}
+
+/* Scrollbar */
+.dg-body::-webkit-scrollbar,
+.dg-preview::-webkit-scrollbar,
+.dg-editor::-webkit-scrollbar,
+.dg-warnings::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dg-body::-webkit-scrollbar-thumb,
+.dg-preview::-webkit-scrollbar-thumb,
+.dg-editor::-webkit-scrollbar-thumb,
+.dg-warnings::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+.dg-body::-webkit-scrollbar-thumb:hover,
+.dg-preview::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
