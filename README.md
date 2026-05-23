@@ -1,16 +1,6 @@
-# camunda-modeler-plugins-bpmn-doc-generator
-camunda-modeler-plugins-bpmn-doc-generator
-
 # BPMN Doc Generator — Плагин для Camunda Modeler
 
 Генератор Markdown-документации из BPMN-моделей с использованием локальной LLM через LM Studio. Работает полностью локально — данные не покидают устройство.
-
-<img width="1210" height="790" alt="изображение" src="https://github.com/user-attachments/assets/9714f603-e428-472b-8de7-92eac3a0010b" />
-
-<img width="1006" height="384" alt="изображение" src="https://github.com/user-attachments/assets/f25a37e3-1556-408f-b3f4-0c3c8fc156f9" />
-
-<img width="1067" height="719" alt="изображение" src="https://github.com/user-attachments/assets/c89da91c-e23b-46f7-af5e-8d7e7ce83905" />
-
 
 ## Возможности
 
@@ -245,4 +235,4 @@ npm run build
 
 ## Лицензия
 
-MIT
+Плагин распространяется как есть, без гарантий. Все данные обрабатываются локально.

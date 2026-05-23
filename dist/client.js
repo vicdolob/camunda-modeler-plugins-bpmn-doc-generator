@@ -1,4 +1,5 @@
-var __bpmnDocGenerator = (() => {
+var __bpmnDocGenerator = (() => { try {
+  console.log('[BPMN Doc Generator] Script loading...');
   var __create = Object.create;
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -313,9 +314,62 @@ var __bpmnDocGenerator = (() => {
   }
 
   // client/modules/LmStudioClient.js
+  var PROVIDERS = [
+    {
+      id: "lmstudio",
+      name: "LM Studio (local)",
+      endpoint: "http://localhost:1234/v1",
+      apiKey: "lm-studio",
+      model: "",
+      apiFormat: "openai"
+    },
+    {
+      id: "openai",
+      name: "OpenAI",
+      endpoint: "https://api.openai.com/v1",
+      apiKey: "",
+      model: "gpt-4o",
+      apiFormat: "openai"
+    },
+    {
+      id: "anthropic",
+      name: "Anthropic",
+      endpoint: "https://api.anthropic.com",
+      apiKey: "",
+      model: "claude-sonnet-4-20250514",
+      apiFormat: "anthropic"
+    },
+    {
+      id: "deepseek",
+      name: "DeepSeek",
+      endpoint: "https://api.deepseek.com/v1",
+      apiKey: "",
+      model: "deepseek-chat",
+      apiFormat: "openai"
+    },
+    {
+      id: "zai",
+      name: "Z.ai",
+      endpoint: "https://api.z.ai/api/anthropic",
+      apiKey: "",
+      model: "GLM-5.1",
+      apiFormat: "anthropic"
+    },
+    {
+      id: "custom",
+      name: "Custom (OpenAI-compatible)",
+      endpoint: "",
+      apiKey: "",
+      model: "",
+      apiFormat: "openai"
+    }
+  ];
   var DEFAULT_CONFIG = {
+    providerId: "lmstudio",
     endpoint: "http://localhost:1234/v1",
     apiKey: "lm-studio",
+    model: "",
+    apiFormat: "openai",
     temperature: 0.3,
     maxTokens: 4096,
     stream: true,
@@ -324,25 +378,66 @@ var __bpmnDocGenerator = (() => {
   function mergeConfig(userConfig) {
     return Object.assign({}, DEFAULT_CONFIG, userConfig || {});
   }
-  async function checkConnection(endpoint) {
-    var url = (endpoint || DEFAULT_CONFIG.endpoint) + "/models";
+  function buildHeaders(cfg) {
+    if (cfg.apiFormat === "anthropic") {
+      return {
+        "Content-Type": "application/json",
+        "x-api-key": cfg.apiKey || "",
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      };
+    }
+    return {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + (cfg.apiKey || "lm-studio")
+    };
+  }
+  function toAnthropicMessages(messages) {
+    var system = "";
+    var converted = [];
+    messages.forEach(function(m) {
+      if (m.role === "system") {
+        system += (system ? "\n" : "") + m.content;
+      } else {
+        converted.push({ role: m.role, content: m.content });
+      }
+    });
+    return { system, messages: converted };
+  }
+  async function checkConnection(endpoint, apiKey, apiFormat) {
+    var format = apiFormat || "openai";
     try {
-      var resp = await fetch(url, {
+      if (format === "anthropic") {
+        var resp = await fetch(endpoint + "/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey || "",
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true"
+          },
+          body: JSON.stringify({ model: "ping", messages: [], max_tokens: 1 }),
+          signal: AbortSignal.timeout(5e3)
+        });
+        return true;
+      }
+      var modelsUrl = (endpoint || DEFAULT_CONFIG.endpoint) + "/models";
+      var resp2 = await fetch(modelsUrl, {
         method: "GET",
-        headers: { "Authorization": "Bearer lm-studio" },
+        headers: { "Authorization": "Bearer " + (apiKey || "lm-studio") },
         signal: AbortSignal.timeout(5e3)
       });
-      return resp.ok;
+      return resp2.ok;
     } catch (e) {
       return false;
     }
   }
-  async function getModels(endpoint) {
+  async function getModels(endpoint, apiKey) {
     var url = (endpoint || DEFAULT_CONFIG.endpoint) + "/models";
     try {
       var resp = await fetch(url, {
         method: "GET",
-        headers: { "Authorization": "Bearer lm-studio" },
+        headers: { "Authorization": "Bearer " + (apiKey || "lm-studio") },
         signal: AbortSignal.timeout(5e3)
       });
       if (!resp.ok) return [];
@@ -354,37 +449,16 @@ var __bpmnDocGenerator = (() => {
       return [];
     }
   }
-  async function complete(messages, config) {
-    var cfg = mergeConfig(config);
-    var url = cfg.endpoint + "/chat/completions";
-    var body = {
-      model: cfg.model || "",
-      messages,
-      temperature: cfg.temperature,
-      max_tokens: cfg.maxTokens,
-      stream: false
-    };
-    var resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + cfg.apiKey
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(cfg.timeout)
-    });
-    if (!resp.ok) {
-      var errText = await resp.text().catch(function() {
-        return "";
-      });
-      throw new Error("LM Studio error " + resp.status + ": " + errText);
-    }
-    var data = await resp.json();
-    return data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || "";
-  }
   async function completeStream(messages, config, onChunk) {
     var cfg = mergeConfig(config);
-    var url = cfg.endpoint + "/chat/completions";
+    var headers = buildHeaders(cfg);
+    if (cfg.apiFormat === "anthropic") {
+      return await completeStreamAnthropic(messages, cfg, headers, onChunk);
+    }
+    return await completeStreamOpenAI(messages, cfg, headers, onChunk);
+  }
+  async function completeStreamOpenAI(messages, cfg, headers, onChunk) {
+    var url = cfg.endpoint.replace(/\/+$/, "") + "/chat/completions";
     var body = {
       model: cfg.model || "",
       messages,
@@ -394,10 +468,7 @@ var __bpmnDocGenerator = (() => {
     };
     var resp = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + cfg.apiKey
-      },
+      headers,
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(cfg.timeout)
     });
@@ -405,11 +476,43 @@ var __bpmnDocGenerator = (() => {
       var errText = await resp.text().catch(function() {
         return "";
       });
-      if (resp.status === 404) {
-        throw new Error("Model not loaded in LM Studio. Load a model before generating.");
-      }
-      throw new Error("LM Studio error " + resp.status + ": " + errText);
+      if (resp.status === 404) throw new Error("Model not found. Check model name.");
+      throw new Error("API error " + resp.status + ": " + errText.substring(0, 300));
     }
+    return await readSSEStream(resp, onChunk, function(parsed) {
+      return parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content;
+    });
+  }
+  async function completeStreamAnthropic(messages, cfg, headers, onChunk) {
+    var url = cfg.endpoint.replace(/\/+$/, "") + "/v1/messages";
+    var anth = toAnthropicMessages(messages);
+    var body = {
+      model: cfg.model || "claude-sonnet-4-20250514",
+      messages: anth.messages,
+      max_tokens: cfg.maxTokens || 4096,
+      stream: true
+    };
+    if (anth.system) body.system = anth.system;
+    var resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(cfg.timeout)
+    });
+    if (!resp.ok) {
+      var errText = await resp.text().catch(function() {
+        return "";
+      });
+      throw new Error("Anthropic API error " + resp.status + ": " + errText.substring(0, 300));
+    }
+    return await readSSEStream(resp, onChunk, function(parsed) {
+      if (parsed.type === "content_block_delta" && parsed.delta && parsed.delta.text) {
+        return parsed.delta.text;
+      }
+      return null;
+    });
+  }
+  async function readSSEStream(resp, onChunk, extractContent) {
     var reader = resp.body.getReader();
     var decoder = new TextDecoder();
     var fullText = "";
@@ -427,7 +530,7 @@ var __bpmnDocGenerator = (() => {
         if (payload === "[DONE]") continue;
         try {
           var parsed = JSON.parse(payload);
-          var content = parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content;
+          var content = extractContent(parsed);
           if (content) {
             fullText += content;
             if (onChunk) onChunk(content);
@@ -438,21 +541,6 @@ var __bpmnDocGenerator = (() => {
     }
     return fullText;
   }
-  var LmStudioClient = function(config) {
-    this.config = mergeConfig(config);
-  };
-  LmStudioClient.prototype.checkConnection = function() {
-    return checkConnection(this.config.endpoint);
-  };
-  LmStudioClient.prototype.getModels = function() {
-    return getModels(this.config.endpoint);
-  };
-  LmStudioClient.prototype.complete = function(messages, config) {
-    return complete(messages, Object.assign({}, this.config, config));
-  };
-  LmStudioClient.prototype.completeStream = function(messages, config, onChunk) {
-    return completeStream(messages, Object.assign({}, this.config, config), onChunk);
-  };
 
   // client/modules/QualityChecker.js
   function runChecks(processGraph) {
@@ -945,6 +1033,40 @@ var __bpmnDocGenerator = (() => {
     return Promise.resolve();
   }
 
+  // client/modules/SettingsStore.js
+  var STORAGE_KEY = "bpmnDocGen_settings";
+  var DEFAULT_SETTINGS = {
+    providerId: "lmstudio",
+    endpoint: "http://localhost:1234/v1",
+    apiKey: "lm-studio",
+    model: "",
+    apiFormat: "openai",
+    temperature: 0.3,
+    maxTokens: 4096,
+    language: "ru",
+    template: "standard",
+    detailLevel: 2
+  };
+  function loadSettings() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { ...DEFAULT_SETTINGS };
+      var saved = JSON.parse(raw);
+      return Object.assign({}, DEFAULT_SETTINGS, saved);
+    } catch (e) {
+      return { ...DEFAULT_SETTINGS };
+    }
+  }
+  function saveSettings(settings) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      return true;
+    } catch (e) {
+      console.warn("[BPMN Doc Generator] Could not save settings:", e);
+      return false;
+    }
+  }
+
   // client/skills/ProcessSummarySkill.js
   var SYSTEM_PROMPT = [
     "\u0422\u044B \u2014 \u0442\u0435\u0445\u043D\u0438\u0447\u0435\u0441\u043A\u0438\u0439 \u043F\u0438\u0441\u0430\u0442\u0435\u043B\u044C \u0438 \u0431\u0438\u0437\u043D\u0435\u0441-\u0430\u043D\u0430\u043B\u0438\u0442\u0438\u043A.",
@@ -1273,14 +1395,6 @@ var __bpmnDocGenerator = (() => {
     { value: "ru", label: "Russian" },
     { value: "en", label: "English" }
   ];
-  var DEFAULT_LLM = {
-    endpoint: "http://localhost:1234/v1",
-    apiKey: "lm-studio",
-    model: "",
-    temperature: 0.3,
-    maxTokens: 2048,
-    stream: true
-  };
   function BpmnDocPanel(props) {
     var subscribe = props.subscribe || function() {
     };
@@ -1288,35 +1402,61 @@ var __bpmnDocGenerator = (() => {
     };
     var displayNotification = props.displayNotification || function() {
     };
+    var savedSettings = (0, import_react.useRef)(loadSettings()).current;
     var sGraph = (0, import_react.useState)(null), processGraph = sGraph[0], setProcessGraph = sGraph[1];
     var sQuality = (0, import_react.useState)(null), qualityReport = sQuality[0], setQualityReport = sQuality[1];
     var sReq = (0, import_react.useState)(""), requirementsText = sReq[0], setRequirementsText = sReq[1];
-    var sLlm = (0, import_react.useState)({ ...DEFAULT_LLM }), llmConfig = sLlm[0], setLlmConfig = sLlm[1];
-    var sConn = (0, import_react.useState)("disconnected"), connectionStatus = sConn[0], setConnectionStatus = sConn[1];
+    var sLlm = (0, import_react.useState)({
+      providerId: savedSettings.providerId || "lmstudio",
+      endpoint: savedSettings.endpoint || "http://localhost:1234/v1",
+      apiKey: savedSettings.apiKey || "lm-studio",
+      model: savedSettings.model || "",
+      apiFormat: savedSettings.apiFormat || "openai",
+      temperature: savedSettings.temperature || 0.3,
+      maxTokens: savedSettings.maxTokens || 4096,
+      stream: true,
+      timeout: 12e4
+    }), llmConfig = sLlm[0], setLlmConfig = sLlm[1];
+    var sConn = (0, import_react.useState)(""), connectionStatus = sConn[0], setConnectionStatus = sConn[1];
     var sModels = (0, import_react.useState)([]), modelList = sModels[0], setModelList = sModels[1];
-    var sProfile = (0, import_react.useState)({ template: "standard", language: "ru", detailLevel: 2 });
-    var genProfile = sProfile[0], setGenProfile = sProfile[1];
+    var sProfile = (0, import_react.useState)({
+      template: savedSettings.template || "standard",
+      language: savedSettings.language || "ru",
+      detailLevel: savedSettings.detailLevel || 2
+    }), genProfile = sProfile[0], setGenProfile = sProfile[1];
     var sGenStatus = (0, import_react.useState)("idle"), genStatus = sGenStatus[0], setGenStatus = sGenStatus[1];
-    var sActiveSkill = (0, import_react.useState)(-1), activeSkill = sActiveSkill[0], setActiveSkill = sActiveSkill[1];
     var sSkillProgress = (0, import_react.useState)(""), skillProgress = sSkillProgress[0], setSkillProgress = sSkillProgress[1];
     var sPreview = (0, import_react.useState)(""), previewText = sPreview[0], setPreviewText = sPreview[1];
     var sSections = (0, import_react.useState)(null), sections = sSections[0], setSections = sSections[1];
     var sError = (0, import_react.useState)(null), error = sError[0], setError = sError[1];
     var sFileName = (0, import_react.useState)("untitled.bpmn"), fileName = sFileName[0], setFileName = sFileName[1];
+    var sGenLog = (0, import_react.useState)([]), genLog = sGenLog[0], setGenLog = sGenLog[1];
+    var sLogOpen = (0, import_react.useState)(false), logOpen = sLogOpen[0], setLogOpen = sLogOpen[1];
     var sTab = (0, import_react.useState)("settings"), activeTab = sTab[0], setActiveTab = sTab[1];
     var sEditMode = (0, import_react.useState)(false), editMode = sEditMode[0], setEditMode = sEditMode[1];
     var sEditedMd = (0, import_react.useState)(""), editedMd = sEditedMd[0], setEditedMd = sEditedMd[1];
+    var sShowSettings = (0, import_react.useState)(false), showSettings = sShowSettings[0], setShowSettings = sShowSettings[1];
     var previewRef = (0, import_react.useRef)(null);
+    var persistSettings = (0, import_react.useCallback)(function(cfg, profile) {
+      saveSettings({
+        providerId: cfg.providerId,
+        endpoint: cfg.endpoint,
+        apiKey: cfg.apiKey,
+        model: cfg.model,
+        apiFormat: cfg.apiFormat,
+        temperature: cfg.temperature,
+        maxTokens: cfg.maxTokens,
+        template: profile.template,
+        language: profile.language,
+        detailLevel: profile.detailLevel
+      });
+    }, []);
     (0, import_react.useEffect)(function() {
       subscribe("app.activeTabChanged", function(e) {
-        if (e && e.tab && e.tab.file && e.tab.file.name) {
-          setFileName(e.tab.file.name);
-        }
+        if (e && e.tab && e.tab.file && e.tab.file.name) setFileName(e.tab.file.name);
       });
       subscribe("tab.saved", function(e) {
-        if (e && e.file && e.file.name) {
-          setFileName(e.file.name);
-        }
+        if (e && e.file && e.file.name) setFileName(e.file.name);
       });
     }, []);
     var handleAnalyze = (0, import_react.useCallback)(async function() {
@@ -1350,10 +1490,10 @@ var __bpmnDocGenerator = (() => {
     var handleCheckConnection = (0, import_react.useCallback)(async function() {
       setConnectionStatus("checking");
       try {
-        var connected = await checkConnection(llmConfig.endpoint);
+        var connected = await checkConnection(llmConfig.endpoint, llmConfig.apiKey, llmConfig.apiFormat);
         setConnectionStatus(connected ? "connected" : "disconnected");
-        if (connected) {
-          var models = await getModels(llmConfig.endpoint);
+        if (connected && llmConfig.apiFormat === "openai") {
+          var models = await getModels(llmConfig.endpoint, llmConfig.apiKey);
           setModelList(models);
           if (models.length > 0 && !llmConfig.model) {
             setLlmConfig(Object.assign({}, llmConfig, { model: models[0] }));
@@ -1373,28 +1513,34 @@ var __bpmnDocGenerator = (() => {
       setPreviewText("");
       setSections(null);
       setSkillProgress("");
+      setGenLog([]);
+      setLogOpen(false);
       try {
         var context = buildContext(processGraph, requirementsText, genProfile, llmConfig);
         var accumulatedPreview = "";
-        var generatedSections = await orchestrate(
-          SKILLS,
-          context,
-          {
-            onSkillStart: function(idx, name, total) {
-              setActiveSkill(idx);
-              setSkillProgress("Skill " + (idx + 1) + " of " + total + ": " + name + "...");
-            },
-            onSkillProgress: function(idx, chunk) {
-              accumulatedPreview += chunk;
-              setPreviewText(accumulatedPreview);
-            },
-            onSkillComplete: function(idx, result) {
-            },
-            onSkillError: function(idx, err) {
-              console.warn("[BPMN Doc Generator] Skill failed:", err);
-            }
+        var logEntries = [];
+        var generatedSections = await orchestrate(SKILLS, context, {
+          onSkillStart: function(idx, name, total) {
+            var msg = "Skill " + (idx + 1) + "/" + total + ": " + name + " \u2014 started";
+            setSkillProgress(msg);
+            logEntries = logEntries.concat([{ time: (/* @__PURE__ */ new Date()).toLocaleTimeString(), msg, type: "start" }]);
+            setGenLog(logEntries.slice());
+          },
+          onSkillProgress: function(idx, chunk) {
+            accumulatedPreview += chunk;
+            setPreviewText(accumulatedPreview);
+          },
+          onSkillComplete: function(idx, result) {
+            var msg = "Skill " + (idx + 1) + " \u2014 completed (" + (result ? result.length : 0) + " chars)";
+            logEntries = logEntries.concat([{ time: (/* @__PURE__ */ new Date()).toLocaleTimeString(), msg, type: "done" }]);
+            setGenLog(logEntries.slice());
+          },
+          onSkillError: function(idx, err) {
+            var msg = "Skill " + (idx + 1) + " \u2014 FAILED: " + (err.message || String(err));
+            logEntries = logEntries.concat([{ time: (/* @__PURE__ */ new Date()).toLocaleTimeString(), msg, type: "error" }]);
+            setGenLog(logEntries.slice());
           }
-        );
+        });
         var finalSections = {};
         finalSections.summary = generatedSections.summary || "";
         if (generatedSections.inputOutput) {
@@ -1420,8 +1566,7 @@ var __bpmnDocGenerator = (() => {
         finalSections.exceptions = generatedSections.exceptions || "";
         finalSections.constraints = generatedSections.constraints || "";
         finalSections.glossary = generatedSections.glossary || "";
-        var elements = processGraph.elements || [];
-        finalSections = applyTraceability(finalSections, elements);
+        finalSections = applyTraceability(finalSections, processGraph.elements || []);
         setSections(finalSections);
         var doc = composeDocument(finalSections, {
           processName: processGraph.metadata.processName,
@@ -1433,13 +1578,13 @@ var __bpmnDocGenerator = (() => {
         setEditedMd(doc);
         setGenStatus("done");
         setActiveTab("preview");
+        logEntries = logEntries.concat([{ time: (/* @__PURE__ */ new Date()).toLocaleTimeString(), msg: "All skills completed. Document assembled.", type: "done" }]);
+        setGenLog(logEntries);
         displayNotification({ type: "success", title: "BPMN Doc Generator", content: "Documentation generated successfully!" });
       } catch (err) {
         setGenStatus("error");
         setError("Generation failed: " + (err.message || String(err)));
-        if (previewText) {
-          setActiveTab("preview");
-        }
+        if (previewText) setActiveTab("preview");
       }
     }, [processGraph, requirementsText, genProfile, llmConfig]);
     var handleSaveSingle = (0, import_react.useCallback)(async function() {
@@ -1468,11 +1613,209 @@ var __bpmnDocGenerator = (() => {
       }
     }, [sections, processGraph, fileName]);
     var handleCopy = (0, import_react.useCallback)(function() {
-      var content = editMode ? editedMd : previewText;
-      copyToClipboard(content).then(function() {
+      copyToClipboard(editMode ? editedMd : previewText).then(function() {
         displayNotification({ type: "success", title: "BPMN Doc Generator", content: "Copied to clipboard!" });
       });
     }, [previewText, editedMd, editMode]);
+    var handleProviderChange = (0, import_react.useCallback)(function(providerId) {
+      var preset = PROVIDERS.find(function(p) {
+        return p.id === providerId;
+      });
+      if (!preset) return;
+      var newCfg = Object.assign({}, llmConfig, {
+        providerId: preset.id,
+        endpoint: preset.endpoint || llmConfig.endpoint,
+        apiKey: preset.apiKey !== void 0 ? preset.apiKey : llmConfig.apiKey,
+        model: preset.model || "",
+        apiFormat: preset.apiFormat
+      });
+      setLlmConfig(newCfg);
+      setConnectionStatus("");
+      setModelList([]);
+      persistSettings(newCfg, genProfile);
+    }, [llmConfig, genProfile, persistSettings]);
+    var updateLlmConfig = (0, import_react.useCallback)(function(updates) {
+      var newCfg = Object.assign({}, llmConfig, updates);
+      setLlmConfig(newCfg);
+      persistSettings(newCfg, genProfile);
+    }, [llmConfig, genProfile, persistSettings]);
+    var updateGenProfile = (0, import_react.useCallback)(function(updates) {
+      var newProfile = Object.assign({}, genProfile, updates);
+      setGenProfile(newProfile);
+      persistSettings(llmConfig, newProfile);
+    }, [llmConfig, genProfile, persistSettings]);
+    var renderSettingsPanel = function() {
+      if (!showSettings) return null;
+      return import_react.default.createElement(
+        "div",
+        { className: "dg-settings-overlay" },
+        import_react.default.createElement(
+          "div",
+          { className: "dg-settings-panel" },
+          // Header
+          import_react.default.createElement(
+            "div",
+            { className: "dg-settings-header" },
+            import_react.default.createElement("span", { className: "dg-settings-title" }, "LLM Connection Settings"),
+            import_react.default.createElement("button", {
+              className: "dg-btn dg-btn-sm",
+              onClick: function() {
+                setShowSettings(false);
+              },
+              title: "Close settings"
+            }, "\u2715")
+          ),
+          // Provider selector
+          import_react.default.createElement(
+            "div",
+            { className: "dg-form-group" },
+            import_react.default.createElement("label", null, "Provider"),
+            import_react.default.createElement(
+              "select",
+              {
+                value: llmConfig.providerId || "lmstudio",
+                onChange: function(e) {
+                  handleProviderChange(e.target.value);
+                }
+              },
+              PROVIDERS.map(function(p) {
+                return import_react.default.createElement("option", { key: p.id, value: p.id }, p.name);
+              })
+            )
+          ),
+          // Endpoint
+          import_react.default.createElement(
+            "div",
+            { className: "dg-form-group" },
+            import_react.default.createElement("label", null, "Endpoint URL"),
+            import_react.default.createElement("input", {
+              type: "text",
+              value: llmConfig.endpoint,
+              onChange: function(e) {
+                updateLlmConfig({ endpoint: e.target.value });
+              },
+              placeholder: llmConfig.apiFormat === "anthropic" ? "https://api.anthropic.com" : "http://localhost:1234/v1"
+            })
+          ),
+          // API Key
+          import_react.default.createElement(
+            "div",
+            { className: "dg-form-group" },
+            import_react.default.createElement("label", null, "API Key"),
+            import_react.default.createElement("input", {
+              type: "password",
+              value: llmConfig.apiKey,
+              onChange: function(e) {
+                updateLlmConfig({ apiKey: e.target.value });
+              },
+              placeholder: llmConfig.providerId === "lmstudio" ? "lm-studio" : "sk-..."
+            })
+          ),
+          // Model
+          import_react.default.createElement(
+            "div",
+            { className: "dg-form-group" },
+            import_react.default.createElement("label", null, "Model"),
+            modelList.length > 0 ? import_react.default.createElement("select", {
+              value: llmConfig.model,
+              onChange: function(e) {
+                updateLlmConfig({ model: e.target.value });
+              }
+            }, modelList.map(function(m) {
+              return import_react.default.createElement("option", { key: m, value: m }, m);
+            })) : import_react.default.createElement("input", {
+              type: "text",
+              value: llmConfig.model,
+              onChange: function(e) {
+                updateLlmConfig({ model: e.target.value });
+              },
+              placeholder: "Model name or ID"
+            })
+          ),
+          // Temperature + Max Tokens
+          import_react.default.createElement(
+            "div",
+            { className: "dg-form-row" },
+            import_react.default.createElement(
+              "div",
+              { className: "dg-form-group dg-form-half" },
+              import_react.default.createElement("label", null, "Temperature: ", llmConfig.temperature),
+              import_react.default.createElement("input", {
+                type: "range",
+                min: "0",
+                max: "1",
+                step: "0.1",
+                value: llmConfig.temperature,
+                onChange: function(e) {
+                  updateLlmConfig({ temperature: parseFloat(e.target.value) });
+                }
+              })
+            ),
+            import_react.default.createElement(
+              "div",
+              { className: "dg-form-group dg-form-half" },
+              import_react.default.createElement("label", null, "Max Tokens"),
+              import_react.default.createElement("input", {
+                type: "number",
+                min: "256",
+                max: "32768",
+                step: "256",
+                value: llmConfig.maxTokens,
+                onChange: function(e) {
+                  updateLlmConfig({ maxTokens: parseInt(e.target.value) || 4096 });
+                }
+              })
+            )
+          ),
+          // Connection check
+          import_react.default.createElement(
+            "div",
+            { className: "dg-form-row", style: { marginTop: "8px" } },
+            import_react.default.createElement("button", {
+              className: "dg-btn dg-btn-sm",
+              onClick: handleCheckConnection,
+              disabled: connectionStatus === "checking"
+            }, connectionStatus === "checking" ? "Checking..." : "Check Connection"),
+            import_react.default.createElement(
+              "span",
+              { className: "dg-conn-status " + connectionStatus },
+              connectionStatus === "connected" ? " Connected" : connectionStatus === "checking" ? " Checking..." : connectionStatus === "disconnected" ? " Disconnected" : ""
+            )
+          ),
+          // Template + Language
+          import_react.default.createElement(
+            "div",
+            { className: "dg-form-row", style: { marginTop: "12px" } },
+            import_react.default.createElement(
+              "div",
+              { className: "dg-form-group dg-form-half" },
+              import_react.default.createElement("label", null, "Template"),
+              import_react.default.createElement("select", {
+                value: genProfile.template,
+                onChange: function(e) {
+                  updateGenProfile({ template: e.target.value });
+                }
+              }, TEMPLATES.map(function(t) {
+                return import_react.default.createElement("option", { key: t.value, value: t.value }, t.label);
+              }))
+            ),
+            import_react.default.createElement(
+              "div",
+              { className: "dg-form-group dg-form-half" },
+              import_react.default.createElement("label", null, "Language"),
+              import_react.default.createElement("select", {
+                value: genProfile.language,
+                onChange: function(e) {
+                  updateGenProfile({ language: e.target.value });
+                }
+              }, LANGUAGES.map(function(l) {
+                return import_react.default.createElement("option", { key: l.value, value: l.value }, l.label);
+              }))
+            )
+          )
+        )
+      );
+    };
     var renderModelInfo = function() {
       if (!processGraph) {
         return import_react.default.createElement(
@@ -1504,10 +1847,7 @@ var __bpmnDocGenerator = (() => {
           import_react.default.createElement(
             "div",
             { className: "dg-coverage-bar" },
-            import_react.default.createElement("div", {
-              className: "dg-coverage-fill",
-              style: { width: qualityReport.coverage + "%" }
-            })
+            import_react.default.createElement("div", { className: "dg-coverage-fill", style: { width: qualityReport.coverage + "%" } })
           ),
           import_react.default.createElement("span", { className: "dg-coverage-text" }, qualityReport.coverageText)
         ),
@@ -1545,137 +1885,43 @@ var __bpmnDocGenerator = (() => {
         import_react.default.createElement("span", { className: "dg-char-count" }, requirementsText.length + " / 4000")
       );
     };
-    var renderLlmSettings = function() {
+    var renderGenLog = function() {
+      if (genLog.length === 0 && genStatus === "idle") return null;
       return import_react.default.createElement(
         "div",
-        { className: "dg-section" },
-        import_react.default.createElement("div", { className: "dg-section-title" }, "LLM Settings"),
-        // Connection status
+        { className: "dg-section dg-log-section" },
         import_react.default.createElement(
           "div",
-          { className: "dg-form-row" },
-          import_react.default.createElement(
-            "span",
-            { className: "dg-conn-status " + connectionStatus },
-            connectionStatus === "connected" ? " Connected" : connectionStatus === "checking" ? " Checking..." : connectionStatus === "disconnected" ? " Disconnected" : " Not checked"
-          ),
-          import_react.default.createElement("button", {
-            className: "dg-btn dg-btn-sm",
-            onClick: handleCheckConnection,
-            disabled: connectionStatus === "checking"
-          }, "Check Connection")
+          {
+            className: "dg-log-header",
+            onClick: function() {
+              setLogOpen(!logOpen);
+            }
+          },
+          import_react.default.createElement("span", { className: "dg-log-toggle" }, logOpen ? "\u25BC" : "\u25B6"),
+          import_react.default.createElement("span", { className: "dg-log-title" }, "Generation Log"),
+          genStatus === "running" && import_react.default.createElement("span", { className: "dg-spinner dg-spinner-sm" }),
+          import_react.default.createElement("span", { className: "dg-log-count" }, genLog.length + " entries")
         ),
-        // Endpoint
-        import_react.default.createElement(
+        logOpen && import_react.default.createElement(
           "div",
-          { className: "dg-form-group" },
-          import_react.default.createElement("label", null, "Endpoint"),
-          import_react.default.createElement("input", {
-            type: "text",
-            value: llmConfig.endpoint,
-            onChange: function(e) {
-              setLlmConfig(Object.assign({}, llmConfig, { endpoint: e.target.value }));
-            },
-            placeholder: "http://localhost:1234/v1"
-          })
-        ),
-        // Model
-        import_react.default.createElement(
-          "div",
-          { className: "dg-form-group" },
-          import_react.default.createElement("label", null, "Model"),
-          modelList.length > 0 ? import_react.default.createElement(
-            "select",
-            {
-              value: llmConfig.model,
-              onChange: function(e) {
-                setLlmConfig(Object.assign({}, llmConfig, { model: e.target.value }));
-              }
-            },
-            modelList.map(function(m) {
-              return import_react.default.createElement("option", { key: m, value: m }, m);
-            })
-          ) : import_react.default.createElement("input", {
-            type: "text",
-            value: llmConfig.model,
-            onChange: function(e) {
-              setLlmConfig(Object.assign({}, llmConfig, { model: e.target.value }));
-            },
-            placeholder: "Model name or ID"
-          })
-        ),
-        // Temperature + Max Tokens
-        import_react.default.createElement(
-          "div",
-          { className: "dg-form-row" },
-          import_react.default.createElement(
+          { className: "dg-log-body" },
+          genLog.map(function(entry, i) {
+            return import_react.default.createElement(
+              "div",
+              { key: i, className: "dg-log-entry dg-log-" + entry.type },
+              import_react.default.createElement("span", { className: "dg-log-time" }, entry.time),
+              " ",
+              entry.msg
+            );
+          }),
+          genStatus === "running" && import_react.default.createElement(
             "div",
-            { className: "dg-form-group dg-form-half" },
-            import_react.default.createElement("label", null, "Temperature: ", llmConfig.temperature),
-            import_react.default.createElement("input", {
-              type: "range",
-              min: "0",
-              max: "1",
-              step: "0.1",
-              value: llmConfig.temperature,
-              onChange: function(e) {
-                setLlmConfig(Object.assign({}, llmConfig, { temperature: parseFloat(e.target.value) }));
-              }
-            })
-          ),
-          import_react.default.createElement(
-            "div",
-            { className: "dg-form-group dg-form-half" },
-            import_react.default.createElement("label", null, "Max Tokens"),
-            import_react.default.createElement("input", {
-              type: "number",
-              min: "256",
-              max: "32768",
-              step: "256",
-              value: llmConfig.maxTokens,
-              onChange: function(e) {
-                setLlmConfig(Object.assign({}, llmConfig, { maxTokens: parseInt(e.target.value) || 2048 }));
-              }
-            })
-          )
-        ),
-        // Template + Language
-        import_react.default.createElement(
-          "div",
-          { className: "dg-form-row" },
-          import_react.default.createElement(
-            "div",
-            { className: "dg-form-group dg-form-half" },
-            import_react.default.createElement("label", null, "Template"),
-            import_react.default.createElement(
-              "select",
-              {
-                value: genProfile.template,
-                onChange: function(e) {
-                  setGenProfile(Object.assign({}, genProfile, { template: e.target.value }));
-                }
-              },
-              TEMPLATES.map(function(t) {
-                return import_react.default.createElement("option", { key: t.value, value: t.value }, t.label);
-              })
-            )
-          ),
-          import_react.default.createElement(
-            "div",
-            { className: "dg-form-group dg-form-half" },
-            import_react.default.createElement("label", null, "Language"),
-            import_react.default.createElement(
-              "select",
-              {
-                value: genProfile.language,
-                onChange: function(e) {
-                  setGenProfile(Object.assign({}, genProfile, { language: e.target.value }));
-                }
-              },
-              LANGUAGES.map(function(l) {
-                return import_react.default.createElement("option", { key: l.value, value: l.value }, l.label);
-              })
-            )
+            { className: "dg-log-entry dg-log-start" },
+            import_react.default.createElement("span", { className: "dg-log-time" }, (/* @__PURE__ */ new Date()).toLocaleTimeString()),
+            " ",
+            skillProgress,
+            " ..."
           )
         )
       );
@@ -1713,39 +1959,23 @@ var __bpmnDocGenerator = (() => {
       return import_react.default.createElement(
         "div",
         { className: "dg-preview-container" },
-        // Preview toolbar
         import_react.default.createElement(
           "div",
           { className: "dg-preview-toolbar" },
-          editMode ? import_react.default.createElement("button", {
-            className: "dg-btn dg-btn-sm",
-            onClick: function() {
-              setEditMode(false);
-              setEditedMd(previewText);
-            }
-          }, "Preview") : import_react.default.createElement("button", {
-            className: "dg-btn dg-btn-sm",
-            onClick: function() {
-              setEditMode(true);
-              setEditedMd(previewText);
-            }
-          }, "Edit"),
+          editMode ? import_react.default.createElement("button", { className: "dg-btn dg-btn-sm", onClick: function() {
+            setEditMode(false);
+            setEditedMd(previewText);
+          } }, "Preview") : import_react.default.createElement("button", { className: "dg-btn dg-btn-sm", onClick: function() {
+            setEditMode(true);
+            setEditedMd(previewText);
+          } }, "Edit"),
           import_react.default.createElement("button", { className: "dg-btn dg-btn-sm", onClick: handleCopy }, "Copy"),
           import_react.default.createElement("button", { className: "dg-btn dg-btn-sm", onClick: handleSaveSingle }, "Save .md"),
           sections && import_react.default.createElement("button", { className: "dg-btn dg-btn-sm", onClick: handleSaveMulti }, "Save Multi")
         ),
-        // Preview/Edit area
-        editMode ? import_react.default.createElement("textarea", {
-          className: "dg-editor",
-          value: editedMd,
-          onChange: function(e) {
-            setEditedMd(e.target.value);
-          },
-          ref: previewRef
-        }) : import_react.default.createElement("div", {
-          className: "dg-preview",
-          ref: previewRef
-        }, renderMarkdownPreview(previewText))
+        editMode ? import_react.default.createElement("textarea", { className: "dg-editor", value: editedMd, onChange: function(e) {
+          setEditedMd(e.target.value);
+        }, ref: previewRef }) : import_react.default.createElement("div", { className: "dg-preview", ref: previewRef }, renderMarkdownPreview(previewText))
       );
     };
     var renderMarkdownPreview = function(md) {
@@ -1757,20 +1987,32 @@ var __bpmnDocGenerator = (() => {
           return "<td>" + c.trim() + "</td>";
         }).join("") + "</tr>";
       }).replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>").replace(/^---$/gm, "<hr/>").replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>");
-      return import_react.default.createElement("div", {
-        className: "dg-md-preview",
-        dangerouslySetInnerHTML: { __html: "<p>" + html + "</p>" }
-      });
+      return import_react.default.createElement("div", { className: "dg-md-preview", dangerouslySetInnerHTML: { __html: "<p>" + html + "</p>" } });
     };
     var renderError = function() {
       if (!error) return null;
-      return import_react.default.createElement(
-        "div",
-        { className: "dg-error" },
-        import_react.default.createElement("strong", null, "Error: "),
-        error
-      );
+      return import_react.default.createElement("div", { className: "dg-error" }, import_react.default.createElement("strong", null, "Error: "), error);
     };
+    var gearIcon = import_react.default.createElement(
+      "svg",
+      { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2" },
+      import_react.default.createElement("circle", { cx: "12", cy: "12", r: "3" }),
+      import_react.default.createElement("path", { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" })
+    );
+    var currentProvider = PROVIDERS.find(function(p) {
+      return p.id === (llmConfig.providerId || "lmstudio");
+    });
+    var statusBar = import_react.default.createElement(
+      "div",
+      { className: "dg-status-bar" },
+      import_react.default.createElement("span", { className: "dg-conn-dot " + connectionStatus }),
+      import_react.default.createElement(
+        "span",
+        { className: "dg-status-text" },
+        currentProvider ? currentProvider.name : "Custom",
+        llmConfig.model ? " \xB7 " + llmConfig.model : ""
+      )
+    );
     var tabs = [
       { key: "settings", label: "Settings" },
       { key: "preview", label: "Preview" }
@@ -1778,7 +2020,7 @@ var __bpmnDocGenerator = (() => {
     var panelContent = import_react.default.createElement(
       "div",
       { className: "dg-panel" },
-      // Header
+      // Header with gear icon
       import_react.default.createElement(
         "div",
         { className: "dg-header" },
@@ -1792,8 +2034,21 @@ var __bpmnDocGenerator = (() => {
           ),
           "BPMN Doc Generator"
         ),
-        import_react.default.createElement("span", { className: "dg-version" }, "v1.0")
+        import_react.default.createElement(
+          "div",
+          { className: "dg-header-right" },
+          statusBar,
+          import_react.default.createElement("button", {
+            className: "dg-gear-btn" + (showSettings ? " active" : ""),
+            onClick: function() {
+              setShowSettings(!showSettings);
+            },
+            title: "LLM Connection Settings"
+          }, gearIcon)
+        )
       ),
+      // Settings overlay (opens on gear click)
+      renderSettingsPanel(),
       // Tab bar
       import_react.default.createElement(
         "div",
@@ -1817,7 +2072,7 @@ var __bpmnDocGenerator = (() => {
           null,
           renderModelInfo(),
           renderRequirementsInput(),
-          renderLlmSettings(),
+          renderGenLog(),
           renderActions(),
           renderError()
         ),
@@ -1873,4 +2128,5 @@ var __bpmnDocGenerator = (() => {
   // client/client.js
   registerClientExtension(BpmnDocPanel_default);
   registerBpmnJSPlugin(ModelerBridgeModule_default);
-})();
+  console.log('[BPMN Doc Generator] Plugin registered successfully.');
+} catch(e) { console.error('[BPMN Doc Generator] LOAD ERROR:', e); } })();
