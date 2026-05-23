@@ -12,6 +12,11 @@
 - **Экспорт** — single-file `.md` или multi-file (4 файла по секциям)
 - **Настройки LLM** — endpoint, модель, temperature, max tokens, язык вывода
 
+<img width="1013" height="569" alt="изображение" src="https://github.com/user-attachments/assets/b84e7f32-15ef-4098-b190-d66ece68d680" />
+<img width="344" height="581" alt="изображение" src="https://github.com/user-attachments/assets/4ee33097-f1ff-4f2f-9008-d134c4ce0646" />
+<img width="728" height="485" alt="изображение" src="https://github.com/user-attachments/assets/253950c5-a720-4a35-be29-c108602f2692" />
+
+
 ## Установка
 
 1. Скопируйте папку `bpmn-doc-generator/` в директорию плагинов Camunda Modeler:
