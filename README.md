@@ -9,6 +9,7 @@ camunda-modeler-plugins-bpmn-doc-generator
 
 <img width="1006" height="384" alt="изображение" src="https://github.com/user-attachments/assets/f25a37e3-1556-408f-b3f4-0c3c8fc156f9" />
 
+<img width="1067" height="719" alt="изображение" src="https://github.com/user-attachments/assets/c89da91c-e23b-46f7-af5e-8d7e7ce83905" />
 
 
 ## Возможности
