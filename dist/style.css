@@ -474,8 +474,8 @@
   justify-content: flex-end;
 }
 .dg-settings-panel {
-  width: 320px;
-  max-width: 90%;
+  width: 480px;
+  max-width: 95%;
   background: #fff;
   border-left: 1px solid #e0e0e0;
   box-shadow: -2px 0 12px rgba(0, 0, 0, 0.08);

@@ -1,5 +1,4 @@
 var __bpmnDocGenerator = (() => { try {
-  console.log('[BPMN Doc Generator] Script loading...');
   var __create = Object.create;
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -2128,5 +2127,4 @@ var __bpmnDocGenerator = (() => { try {
   // client/client.js
   registerClientExtension(BpmnDocPanel_default);
   registerBpmnJSPlugin(ModelerBridgeModule_default);
-  console.log('[BPMN Doc Generator] Plugin registered successfully.');
 } catch(e) { console.error('[BPMN Doc Generator] LOAD ERROR:', e); } })();
