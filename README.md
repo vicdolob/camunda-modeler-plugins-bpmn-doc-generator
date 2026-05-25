@@ -12,9 +12,10 @@
 - **Экспорт** — single-file `.md` или multi-file (4 файла по секциям)
 - **Настройки LLM** — endpoint, модель, temperature, max tokens, язык вывода
 
-<img width="1013" height="569" alt="изображение" src="https://github.com/user-attachments/assets/b84e7f32-15ef-4098-b190-d66ece68d680" />
+<img width="1163" height="1031" alt="изображение" src="https://github.com/user-attachments/assets/89e8545a-4896-499f-927b-e673f0af0af6" />
+<img width="1090" height="484" alt="изображение" src="https://github.com/user-attachments/assets/f2817d5a-344c-4c1b-b281-c187dd7ca650" />
+<img width="913" height="516" alt="изображение" src="https://github.com/user-attachments/assets/edba450b-306d-42a9-8d9b-3a6cf28cfa49" />
 <img width="344" height="581" alt="изображение" src="https://github.com/user-attachments/assets/4ee33097-f1ff-4f2f-9008-d134c4ce0646" />
-<img width="728" height="485" alt="изображение" src="https://github.com/user-attachments/assets/253950c5-a720-4a35-be29-c108602f2692" />
 
 
 ## Установка
